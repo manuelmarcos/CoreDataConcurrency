@@ -16,7 +16,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 
     func application(application: UIApplication, didFinishLaunchingWithOptions launchOptions: [NSObject: AnyObject]?) -> Bool {
-        // Override point for customization after application launch.
+        // Check for other save contexts
+        NSNotificationCenter.defaultCenter().addObserver(self, selector: #selector(AppDelegate.contextDidSaveContext(_:)), name:NSManagedObjectContextDidSaveNotification, object: nil)
         return true
     }
 
@@ -45,6 +46,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     // MARK: - Core Data stack
+
+    // call back function by saveContext, support multi-thread
+    func contextDidSaveContext(notification: NSNotification) {
+        self.managedObjectContext.performBlock {
+            self.managedObjectContext.mergeChangesFromContextDidSaveNotification(notification)
+        }
+    }
 
     lazy var applicationDocumentsDirectory: NSURL = {
         // The directory the application uses to store the Core Data store file. This code uses a directory named "manuel.marcos.CoreDataConcurrency" in the application's documents Application Support directory.
