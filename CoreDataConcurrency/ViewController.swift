@@ -38,15 +38,12 @@ class ViewController: UITableViewController {
     func addNavButtonTapped() {
         let alert = UIAlertController(title: "New Name", message: "Add a new name", preferredStyle: .Alert)
         let saveAction = UIAlertAction(title: "Save", style: .Default, handler: { (action: UIAlertAction) -> Void in
-            let priority = DISPATCH_QUEUE_PRIORITY_DEFAULT
-            dispatch_async(dispatch_get_global_queue(priority, 0)) {
                 let textField = alert.textFields!.first
                 self.saveNamePrivateQueue(textField!.text!, completionHandler: {
                     dispatch_async(dispatch_get_main_queue()) { [unowned self] in
                         self.tableView.reloadData()
                     }
                 })
-            }
         })
 
         let cancelAction = UIAlertAction(title: "Cancel", style: .Default) {
