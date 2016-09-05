@@ -7,9 +7,10 @@
 //
 
 import UIKit
+import CoreData
 
 class ViewController: UITableViewController {
-    var people = [String]()
+    var people = [NSManagedObject]()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -18,21 +19,38 @@ class ViewController: UITableViewController {
         self.navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .Add, target: self, action: #selector(addNavButtonTapped))
     }
 
-    func addNavButtonTapped() {
-        let alert = UIAlertController(title: "New Name",
-                                      message: "Add a new name",
-                                      preferredStyle: .Alert)
+    override func viewWillAppear(animated: Bool) {
+        super.viewWillAppear(animated)
+        let appDelegate = UIApplication.sharedApplication().delegate as! AppDelegate
+        let managedContext = appDelegate.managedObjectContext
 
-        let saveAction = UIAlertAction(title: "Save",
-                                       style: .Default,
-                                       handler: { (action: UIAlertAction) -> Void in
-                                        let textField = alert.textFields!.first
-                                        self.people.append((textField?.text)!)
-                                        self.tableView.reloadData()
+        let fetchRequest = NSFetchRequest(entityName: "Person")
+
+        do {
+            let results = try managedContext.executeFetchRequest(fetchRequest)
+            people = results as! [NSManagedObject]
+        } catch let error as NSError {
+            print("Could not fetch \(error), \(error.userInfo)")
+        }
+    }
+
+    // MARK: Actions
+    func addNavButtonTapped() {
+        let alert = UIAlertController(title: "New Name", message: "Add a new name", preferredStyle: .Alert)
+        let saveAction = UIAlertAction(title: "Save", style: .Default, handler: { (action: UIAlertAction) -> Void in
+            let priority = DISPATCH_QUEUE_PRIORITY_DEFAULT
+            dispatch_async(dispatch_get_global_queue(priority, 0)) {
+                let textField = alert.textFields!.first
+                self.saveNamePrivateQueue(textField!.text!, completionHandler: {
+                    dispatch_async(dispatch_get_main_queue()) { [unowned self] in
+                        self.tableView.reloadData()
+                    }
+                })
+            }
         })
 
-        let cancelAction = UIAlertAction(title: "Cancel",
-                                         style: .Default) { (action: UIAlertAction) -> Void in
+        let cancelAction = UIAlertAction(title: "Cancel", style: .Default) {
+            (action: UIAlertAction) -> Void in
         }
 
         alert.addTextFieldWithConfigurationHandler {
@@ -43,9 +61,7 @@ class ViewController: UITableViewController {
         alert.addAction(cancelAction)
 
         alert.view.setNeedsLayout()
-        presentViewController(alert,
-                              animated: true,
-                              completion: nil)
+        presentViewController(alert, animated: true, completion: nil)
     }
 
     // MARK: UITableViewDataSource
@@ -53,11 +69,30 @@ class ViewController: UITableViewController {
         return people.count
     }
 
-    override func tableView(tableView: UITableView,
-                   cellForRowAtIndexPath
-        indexPath: NSIndexPath) -> UITableViewCell {
+    override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCellWithIdentifier("Cell")
-        cell!.textLabel!.text = people[indexPath.row]
+        let person = people[indexPath.row]
+        cell!.textLabel!.text = person.valueForKey("name") as? String
         return cell!
+    }
+
+    // MARK: Helpers
+    func saveNamePrivateQueue(name: String, completionHandler:() -> ()) {
+        let appDelegate = UIApplication.sharedApplication().delegate as! AppDelegate
+        let managedContext = appDelegate.managedObjectContextPrivateQueue
+
+        managedContext.performBlock {
+            let entity =  NSEntityDescription.entityForName("Person", inManagedObjectContext:managedContext)
+            let person = NSManagedObject(entity: entity!, insertIntoManagedObjectContext: managedContext)
+            person.setValue(name, forKey: "name")
+
+            do {
+                try managedContext.save()
+                self.people.append(person)
+                completionHandler()
+            } catch let error as NSError {
+                print("Could not save \(error), \(error.userInfo)")
+            }
+        }
     }
 }
